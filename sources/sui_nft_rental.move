@@ -29,3 +29,9 @@ const EInvalidKiosk: u64 = 3;
 const ERentingPeriodNotOver: u64 = 4;
 const EObjectNotExist: u64 = 5;
 const ETotalPriceOverflow: u64 = 6;
+
+// === Constants ===
+const PERMISSIONS: u128 = 11;
+const SECONDS_IN_A_DAY: u64 = 86400;
+const MAX_BASIS_POINTS: u16 = 10_000;
+const MAX_VALUE_U64: u64 = 0xff_ff_ff_ff__ff_ff_ff_ff;
