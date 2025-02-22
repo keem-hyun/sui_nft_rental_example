@@ -35,3 +35,39 @@ const PERMISSIONS: u128 = 11;
 const SECONDS_IN_A_DAY: u64 = 86400;
 const MAX_BASIS_POINTS: u16 = 10_000;
 const MAX_VALUE_U64: u64 = 0xff_ff_ff_ff__ff_ff_ff_ff;
+
+// === Structs ===
+public struct Rentables has drop {}
+
+public struct Rented has store, copy, drop { id: ID }
+
+public struct Listed has store, copy, drop { id: ID }
+
+public struct Promise {
+  item: Rented,
+  duration: u64,
+  start_date: u64,
+  price_per_day: u64,
+  renter_kiosk: address,
+  borrower_kiosk: ID
+}
+
+public struct Rentable<T: key + store> has store {
+  object: T,
+  duration: u64,
+  start_date: Option<u64>,
+  price_per_day: u64,
+  kiosk_id: ID
+}
+
+public struct RentalPolicy<phantom T> has key, store {
+  id: UID,
+  balance: Balance<SUI>,
+  amount_bp: u64
+}
+
+public struct ProtectedTP<phantom T> has key, store {
+  id: UID,
+  transfer_policy: TransferPolicy<T>,
+  policy_cap: TransferPolicyCap<T>
+}
