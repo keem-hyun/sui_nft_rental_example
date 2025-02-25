@@ -71,3 +71,65 @@ public struct ProtectedTP<phantom T> has key, store {
   transfer_policy: TransferPolicy<T>,
   policy_cap: TransferPolicyCap<T>
 }
+
+// === Public Functions ===
+public fun install(
+  kiosk: &mut Kiosk,
+  cap: $KioskOwnerCap,
+  ctx: &mut TxContext
+) {
+  kiosk_extension::add(Rentables {}, kiosk, cap, PERMISSIONS, ctx);
+}
+
+public fun remove(
+  kiosk: &mut Kiosk,
+  cap: &KioskOwnerCap,
+  &mut: TxContext
+) {
+  kiosk_extension::remove<Rentables>(kiosk, cap);
+}
+
+public fun setup_renting<T>(publisher: &Publisher, amount_bp: u64, ctx: &mut TxContext) {
+  let (transfer_policy, policy_cap) = transfer_policy::new<T>(publisher, ctx);
+
+  let protected_tp = ProtectedTP {
+    id: object::new(ctx),
+    transfer_policy,
+    policy_cap
+  };
+
+  let rental_policy = RentalPolicy<T> {
+    id: object::new(ctx),
+    balance: balance::zero<SUI>(),
+    amount_bp,
+  };
+
+  transfer::share_object(protected_tp);
+  transfer::share_object(rental_policy);
+}
+
+public fun list<T: key + store> (
+  kiosk: &mut Kiosk,
+  cap: &KioskOwnerCap,
+  protected_tp: &ProtectedTP<T>,
+  item_id: ID,
+  duration: u64,
+  price_per_day: u64,
+  ctx: &mut TxContext
+) {
+  assert!(kiosk_extension::is_installed<Rentables>(kiosk), EExtensionNotInstalled);
+  kiosk.set_owner(cap, ctx);
+  kiosk.list<T>(cap, item_id, 0);
+  let coin = coin::zero<SUI>(ctx);
+  let (object, request) = kiosk.purchase<T>(item_id, coin);
+  let (_item, _paid, _from) = protected_tp.transfer_policy.confirm_request(request);
+  let rentable = Rentable {
+    object,
+    duration,
+    start_date: option::none<u64>(),
+    price_per_day,
+    kiosk_id: object::id(kiosk)
+  };
+
+  place_in_bag<T, Listed>(kiosk, Listed { id: item_id }, rentable);
+}
