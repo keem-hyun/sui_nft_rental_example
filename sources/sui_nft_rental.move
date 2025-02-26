@@ -133,3 +133,63 @@ public fun list<T: key + store> (
 
   place_in_bag<T, Listed>(kiosk, Listed { id: item_id }, rentable);
 }
+
+public fun delist<T: key + store> (
+  kiosk: &mut Kiosk,
+  cap: &KioskOwnerCap,
+  transfer_policy: &TransferPolicy<T>,
+  item_id: ID,
+  _ctx: &mut TxContext
+) {
+  assert!(kiosk.has_access(cap), ENotOwner);
+  let rentable = take_from_bag<T, Listed>(kiosk, Listed { id: item_id });
+  let Rentable {
+    object,
+    duration: _,
+    start_date: _,
+    price_per_day: _,
+    kiosk_id: _,
+  } = rentable;
+
+  if (has_rule<T, LockRule>(transfer_policy)) {
+    kiosk.lock(cap, transfer_policy, object);
+  } else {
+    kiosk.place(cap, object);
+  }
+}
+
+public fun rent<T: key + store> (
+  renter_kiosk: &mut Kiosk,
+  borrower_kiosk: &mut Kiosk,
+  rental_policy: &mut RentalPolicy<T>,
+  item_id: ID,
+  mut coin: Coin<SUI>,
+  clock: &Clock,
+  ctx: &mut TxContext
+) {
+  assert!(kiosk_extension::is_installed<Rentables>(borrower_kiosk), EExtensionNotInstalled);
+  
+  let mut rentable = take_from_bag<T, Listed>(renter_kiosk, Listed { id: item_id });
+  
+  let max_price_per_day = MAX_VALUE_U64 / rentable.duration;
+  assert!(rentable.price_per_day <= max_price_per_day, ETotalPriceOverflow);
+  let total_price = rentable.price_per_day * rentable.duration;
+
+  let coin_value = coin.value();
+  assert!(coin_value == total_price, ENotEnoughCoins);
+
+  let mut fees_amount = coin_value as u128;
+  fees_amount = fees_amount * (rental_policy.amount_bp as u128);
+  fees_amount = fees_amount / (MAX_BASIS_POINTS as u128);
+
+  let fees = coin.split(fees_amount as u64, ctx);
+
+  coin::put(&mut rental_policy.balance, fees);
+
+  transfer::public_transfer(coin, renter_kiosk.owner());
+  rentable.start_date.fill(clock.timestamp_ms());
+
+  place_in_bag<T, Rented>(borrower_kiosk, Rented { id: item_id }, rentable);
+}
+
+
